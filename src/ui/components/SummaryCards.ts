@@ -1,4 +1,5 @@
 import { GradingSummary } from '../../types/grading';
+import { Exam } from '../../types/exam';
 
 export interface SummaryToolbarCallbacks {
   onFilterChange: (filter: 'all' | 'wrong' | 'correct') => void;
@@ -32,7 +33,7 @@ export class SummaryCards {
           <div class="metric-title">Acertos / Total</div>
           <div class="metric-value">
             <span id="metricScore">0</span>
-            <span style="font-size: 1.125rem; font-weight: 600; color: var(--text-muted);">/ 40</span>
+            <span style="font-size: 1.125rem; font-weight: 600; color: var(--text-muted);" id="metricTotalQ">/ 40</span>
           </div>
           <div class="metric-sub" id="metricErrors">0 erros</div>
         </div>
@@ -52,7 +53,7 @@ export class SummaryCards {
           <div>
             <span class="status-pill status-approved" id="metricStatusBadge">-</span>
           </div>
-          <div class="metric-sub">Nota mínima de corte: 70%</div>
+          <div class="metric-sub" id="metricPassingRule">Nota de corte: 70%</div>
         </div>
       </div>
 
@@ -60,7 +61,7 @@ export class SummaryCards {
       <div class="toolbar">
         <div class="filter-group">
           <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">Filtrar:</span>
-          <button id="btnFilterAll" class="btn btn-primary btn-sm">Todas (40)</button>
+          <button id="btnFilterAll" class="btn btn-primary btn-sm">Todas</button>
           <button id="btnFilterWrong" class="btn btn-outline btn-sm">Incorretas</button>
           <button id="btnFilterCorrect" class="btn btn-outline btn-sm">Corretas</button>
         </div>
@@ -108,19 +109,25 @@ export class SummaryCards {
     btnPrint?.addEventListener('click', () => this.callbacks.onPrint());
   }
 
-  public update(summary: GradingSummary): void {
+  public update(summary: GradingSummary, exam: Exam): void {
     const scoreEl = this.element.querySelector('#metricScore');
+    const totalQEl = this.element.querySelector('#metricTotalQ');
     const errorsEl = this.element.querySelector('#metricErrors');
     const percentEl = this.element.querySelector('#metricPercent');
     const progressEl = this.element.querySelector<HTMLElement>('#metricProgress');
     const badgeEl = this.element.querySelector<HTMLElement>('#metricStatusBadge');
+    const ruleEl = this.element.querySelector('#metricPassingRule');
+    const btnAll = this.element.querySelector('#btnFilterAll');
 
     if (scoreEl) scoreEl.textContent = String(summary.correctCount);
+    if (totalQEl) totalQEl.textContent = `/ ${summary.totalQuestions}`;
     if (errorsEl) {
       errorsEl.textContent = `${summary.errorCount} ${summary.errorCount === 1 ? 'erro' : 'erros'}`;
     }
     if (percentEl) percentEl.textContent = `${summary.accuracyPercentage}%`;
     if (progressEl) progressEl.style.width = `${summary.accuracyPercentage}%`;
+    if (ruleEl) ruleEl.textContent = `Nota de corte: ${exam.passingScorePercentage}%`;
+    if (btnAll) btnAll.textContent = `Todas (${summary.totalQuestions})`;
 
     if (badgeEl) {
       badgeEl.className = 'status-pill';

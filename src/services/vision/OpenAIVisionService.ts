@@ -1,7 +1,7 @@
 import { IVisionService } from './IVisionService';
 import { AnswerOption, ExamAnswerMap } from '../../types/grading';
-import { TOTAL_EXAM_QUESTIONS } from '../../constants/answerKey';
 import { VisionProgressCallback } from '../../types/vision';
+import { Exam } from '../../types/exam';
 
 export class OpenAIVisionService implements IVisionService {
   constructor(private readonly apiKey: string) {
@@ -12,11 +12,12 @@ export class OpenAIVisionService implements IVisionService {
 
   public async extractAnswers(
     imageBase64: string,
+    exam: Exam,
     onProgress?: VisionProgressCallback
   ): Promise<ExamAnswerMap> {
-    onProgress?.("Enviando requisição multimodal para OpenAI GPT-4o-mini...");
+    onProgress?.(`Enviando folha da prova "${exam.title}" para OpenAI GPT-4o-mini...`);
 
-    const promptText = `Identifique as alternativas assinaladas de 1 a ${TOTAL_EXAM_QUESTIONS} nesta folha de respostas. Retorne estritamente um JSON {"1": "A", "2": "B", ..., "${TOTAL_EXAM_QUESTIONS}": "D"}. Use "-" para questões não preenchidas.`;
+    const promptText = `Identifique as alternativas assinaladas de 1 a ${exam.totalQuestions} nesta folha de respostas da prova "${exam.title}". Retorne estritamente um JSON {"1": "A", "2": "B", ..., "${exam.totalQuestions}": "D"}. Use "-" para questões não preenchidas.`;
 
     const payload = {
       model: "gpt-4o-mini",
@@ -56,14 +57,14 @@ export class OpenAIVisionService implements IVisionService {
     }
 
     onProgress?.("Formatando resultados...");
-    return this.parseAndSanitize(rawContent);
+    return this.parseAndSanitize(rawContent, exam.totalQuestions);
   }
 
-  private parseAndSanitize(rawJson: string): ExamAnswerMap {
+  private parseAndSanitize(rawJson: string, totalQuestions: number): ExamAnswerMap {
     const parsed = JSON.parse(rawJson) as Record<string, string>;
     const sanitized: ExamAnswerMap = {};
 
-    for (let q = 1; q <= TOTAL_EXAM_QUESTIONS; q++) {
+    for (let q = 1; q <= totalQuestions; q++) {
       const val = (parsed[String(q)] || parsed[q] || '-').trim().toUpperCase();
       sanitized[q] = ['A', 'B', 'C', 'D', 'E'].includes(val) ? (val as AnswerOption) : '-';
     }

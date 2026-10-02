@@ -6,23 +6,19 @@ import {
   ExamStatus, 
   ExamReport 
 } from '../../types/grading';
-import { 
-  OFFICIAL_ANSWER_KEY, 
-  TOTAL_EXAM_QUESTIONS, 
-  PASSING_PERCENTAGE_THRESHOLD, 
-  RECOVERY_PERCENTAGE_THRESHOLD 
-} from '../../constants/answerKey';
+import { Exam } from '../../types/exam';
 
 export class GradingService {
   /**
-   * Avalia as respostas do aluno em relação ao gabarito oficial.
+   * Avalia as respostas do aluno em relação ao gabarito de um exame específico.
    */
-  public static gradeExam(studentAnswers: ExamAnswerMap): GradingSummary {
+  public static gradeExam(studentAnswers: ExamAnswerMap, exam: Exam): GradingSummary {
     const questions: QuestionResult[] = [];
     let correctCount = 0;
+    const total = exam.totalQuestions;
 
-    for (let q = 1; q <= TOTAL_EXAM_QUESTIONS; q++) {
-      const officialAnswer = OFFICIAL_ANSWER_KEY[q] || '-';
+    for (let q = 1; q <= total; q++) {
+      const officialAnswer = exam.answerKey[q] || '-';
       const rawStudent = (studentAnswers[q] || '-').trim().toUpperCase() as AnswerOption;
       
       const isCorrect = rawStudent !== '-' && rawStudent === officialAnswer;
@@ -36,12 +32,12 @@ export class GradingService {
       });
     }
 
-    const errorCount = TOTAL_EXAM_QUESTIONS - correctCount;
-    const accuracyPercentage = Number(((correctCount / TOTAL_EXAM_QUESTIONS) * 100).toFixed(1));
-    const status = this.resolveStatus(accuracyPercentage);
+    const errorCount = total - correctCount;
+    const accuracyPercentage = total > 0 ? Number(((correctCount / total) * 100).toFixed(1)) : 0;
+    const status = this.resolveStatus(accuracyPercentage, exam);
 
     return {
-      totalQuestions: TOTAL_EXAM_QUESTIONS,
+      totalQuestions: total,
       correctCount,
       errorCount,
       accuracyPercentage,
@@ -50,21 +46,21 @@ export class GradingService {
     };
   }
 
-  private static resolveStatus(percentage: number): ExamStatus {
-    if (percentage >= PASSING_PERCENTAGE_THRESHOLD) return 'APROVADO';
-    if (percentage >= RECOVERY_PERCENTAGE_THRESHOLD) return 'RECUPERACAO';
+  private static resolveStatus(percentage: number, exam: Exam): ExamStatus {
+    if (percentage >= exam.passingScorePercentage) return 'APROVADO';
+    if (percentage >= exam.recoveryScorePercentage) return 'RECUPERACAO';
     return 'REPROVADO';
   }
 
   /**
    * Constrói relatório formatado para exportação JSON.
    */
-  public static buildReport(summary: GradingSummary, studentAnswers: ExamAnswerMap): ExamReport {
+  public static buildReport(summary: GradingSummary, studentAnswers: ExamAnswerMap, exam: Exam): ExamReport {
     return {
       timestamp: new Date().toISOString(),
-      examTitle: "Avaliação Final Integrada - Desenvolvimento de Sistemas",
+      examTitle: exam.title,
       totalQuestions: summary.totalQuestions,
-      officialKey: OFFICIAL_ANSWER_KEY,
+      officialKey: exam.answerKey,
       studentAnswers,
       summary: {
         correctCount: summary.correctCount,

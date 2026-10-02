@@ -1,7 +1,7 @@
 import { IVisionService } from './IVisionService';
 import { AnswerOption, ExamAnswerMap } from '../../types/grading';
-import { TOTAL_EXAM_QUESTIONS } from '../../constants/answerKey';
 import { VisionProgressCallback } from '../../types/vision';
+import { Exam } from '../../types/exam';
 
 export class GeminiVisionService implements IVisionService {
   constructor(private readonly apiKey: string) {
@@ -12,9 +12,10 @@ export class GeminiVisionService implements IVisionService {
 
   public async extractAnswers(
     imageBase64: string,
+    exam: Exam,
     onProgress?: VisionProgressCallback
   ): Promise<ExamAnswerMap> {
-    onProgress?.("Preparando imagem e enviando para o Google Gemini Flash...");
+    onProgress?.(`Preparando imagem para a prova "${exam.title}" (${exam.totalQuestions} questões)...`);
 
     const commaIndex = imageBase64.indexOf(',');
     const pureBase64 = commaIndex !== -1 ? imageBase64.substring(commaIndex + 1) : imageBase64;
@@ -22,11 +23,11 @@ export class GeminiVisionService implements IVisionService {
     const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
 
     const promptText = `Você é um sistema profissional de leitura óptica (OMR).
-Examine com atenção a folha de respostas contendo ${TOTAL_EXAM_QUESTIONS} questões numeradas de 1 a ${TOTAL_EXAM_QUESTIONS}.
+Examine com atenção a folha de respostas da prova "${exam.title}" contendo EXATAMENTE ${exam.totalQuestions} questões numeradas de 1 a ${exam.totalQuestions}.
 Identifique qual alternativa (A, B, C, D ou E) foi assinalada/preenchida para cada questão.
-Se alguma questão estiver em branco, atribua "-".
-Retorne EXCLUSIVAMENTE um objeto JSON válido mapeando o número da questão para a letra maiúscula correspondente.
-Exemplo: {"1": "B", "2": "C", ..., "${TOTAL_EXAM_QUESTIONS}": "A"}`;
+Se alguma questão estiver em branco ou com rasura ilegível, atribua "-".
+Retorne EXCLUSIVAMENTE um objeto JSON válido mapeando o número da questão como chave string para a letra maiúscula correspondente.
+Exemplo: {"1": "B", "2": "C", ..., "${exam.totalQuestions}": "A"}`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(this.apiKey)}`;
 
@@ -43,7 +44,7 @@ Exemplo: {"1": "B", "2": "C", ..., "${TOTAL_EXAM_QUESTIONS}": "A"}`;
       }
     };
 
-    onProgress?.("Aguardando inferência da IA multimodal...");
+    onProgress?.("Aguardando inferência da IA multimodal Google Gemini...");
 
     const response = await fetch(url, {
       method: 'POST',
@@ -64,15 +65,15 @@ Exemplo: {"1": "B", "2": "C", ..., "${TOTAL_EXAM_QUESTIONS}": "A"}`;
       throw new Error("Resposta vazia da API do Gemini.");
     }
 
-    onProgress?.("Validando e sanitizando respostas...");
-    return this.parseAndSanitize(rawContent);
+    onProgress?.("Validando e sanitizando respostas extraídas...");
+    return this.parseAndSanitize(rawContent, exam.totalQuestions);
   }
 
-  private parseAndSanitize(rawJson: string): ExamAnswerMap {
+  private parseAndSanitize(rawJson: string, totalQuestions: number): ExamAnswerMap {
     const parsed = JSON.parse(rawJson) as Record<string, string>;
     const sanitized: ExamAnswerMap = {};
 
-    for (let q = 1; q <= TOTAL_EXAM_QUESTIONS; q++) {
+    for (let q = 1; q <= totalQuestions; q++) {
       const val = (parsed[String(q)] || parsed[q] || '-').trim().toUpperCase();
       sanitized[q] = ['A', 'B', 'C', 'D', 'E'].includes(val) ? (val as AnswerOption) : '-';
     }
